@@ -1,0 +1,44 @@
+ReGenHuman
+Copyright 2026 The ReGenHuman Authors
+
+This repository's original code and the ReGenHuman LoRA weights under
+weights/ are released under the Apache License, Version 2.0 (see LICENSE).
+
+ReGenHuman builds on the following third-party projects. Each remains under
+its own license; nothing in this repository changes their terms.
+
+Code
+----
+- DiffSynth-Studio (video diffusion pipeline, LoRA training)
+  https://github.com/modelscope/DiffSynth-Studio  — Apache-2.0
+- Wan2.1 / VACE (video diffusion backbone and context adapter)
+  https://github.com/Wan-Video/Wan2.1, https://github.com/ali-vilab/VACE — Apache-2.0
+- DWPose (whole-body pose estimation; ONNX inference code vendored under
+  third_party/dwpose/ from the ControlNet-v1-1-nightly annotator)
+  https://github.com/IDEA-Research/DWPose
+  https://github.com/lllyasviel/ControlNet-v1-1-nightly — Apache-2.0
+- Video-Depth-Anything (video depth estimation; cloned by scripts/setup_models.sh)
+  https://github.com/DepthAnything/Video-Depth-Anything — Apache-2.0 (code)
+- SAM 3 (promptable video segmentation)
+  https://github.com/facebookresearch/sam3 — SAM License
+- SAM 2 + Grounding DINO (fallback segmenter)
+  https://github.com/facebookresearch/sam2 — Apache-2.0
+  https://github.com/IDEA-Research/GroundingDINO — Apache-2.0
+
+Model weights (downloaded, not redistributed here)
+--------------------------------------------------
+- Wan-AI/Wan2.1-VACE-1.3B (DiT, VAE, umT5 encoder) — Apache-2.0
+- DWPose ONNX weights (yolox_l.onnx, dw-ll_ucoco_384.onnx; HF yzd-v/DWPose) — Apache-2.0
+- Video-Depth-Anything ViT-Large weights — CC-BY-NC-4.0 (NON-COMMERCIAL).
+  The ViT-Small weights are Apache-2.0; see README "License" for the
+  --depth_encoder vits alternative.
+- facebook/sam3 weights — SAM License (gated access on Hugging Face)
+- SAM 2.1 hiera-tiny weights — Apache-2.0
+- IDEA-Research/grounding-dino-tiny weights — Apache-2.0
+- Qwen/Qwen3-VL-8B-Instruct (optional --auto_caption) — Apache-2.0
+
+Data
+----
+- The released LoRA weights were trained on videos and captions from the
+  HOIGen-1M dataset. HOIGen-1M itself is not redistributed here; see its
+  terms for dataset usage.

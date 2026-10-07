@@ -1,0 +1,230 @@
+diff --git a/diffsynth/core/data/operators.py b/diffsynth/core/data/operators.py
+index b7a0e7e..a2deda5 100644
+--- a/diffsynth/core/data/operators.py
++++ b/diffsynth/core/data/operators.py
+@@ -1,8 +1,28 @@
+-import torch, torchvision, imageio, os
++import time, torch, torchvision, imageio, os
+ import imageio.v3 as iio
+ from PIL import Image
+ 
+ 
++def _imageio_get_reader_with_retry(path, attempts=10, base_delay=1.0):
++    """imageio_ffmpeg has a 10s hard timeout for ffmpeg's stderr header
++    (imageio_ffmpeg/_io.py: `etime = time.time() + 10.0`). On a busy NFS/AFS
++    mount the first read of a file occasionally exceeds that window and
++    raises `OSError: Could not load meta information`, killing the job mid-
++    epoch. Retry with backoff — the second attempt usually finds the file
++    warm in the page cache."""
++    last_exc = None
++    for i in range(attempts):
++        try:
++            return imageio.get_reader(path)
++        except OSError as e:
++            if "Could not load meta information" not in str(e):
++                raise
++            last_exc = e
++            if i + 1 < attempts:
++                time.sleep(base_delay * (2 ** i))
++    raise last_exc
++
++
+ class DataProcessingPipeline:
+     def __init__(self, operators=None):
+         self.operators: list[DataProcessingOperator] = [] if operators is None else operators
+@@ -122,15 +142,20 @@ class LoadVideo(DataProcessingOperator):
+         return num_frames
+         
+     def __call__(self, data: str):
+-        reader = imageio.get_reader(data)
++        reader = _imageio_get_reader_with_retry(data)
+         num_frames = self.get_num_frames(reader)
+         frames = []
+-        for frame_id in range(num_frames):
++        # Explicitly cap at self.num_frames to handle videos with extra frames
++        max_frames_to_load = min(num_frames, self.num_frames)
++        for frame_id in range(max_frames_to_load):
+             frame = reader.get_data(frame_id)
+             frame = Image.fromarray(frame)
+             frame = self.frame_processor(frame)
+             frames.append(frame)
+         reader.close()
++        # Final safety check - ensure we never return more than requested
++        if len(frames) > self.num_frames:
++            frames = frames[:self.num_frames]
+         return frames
+ 
+ 
+diff --git a/diffsynth/core/data/unified_dataset.py b/diffsynth/core/data/unified_dataset.py
+index 074208c..946afc8 100644
+--- a/diffsynth/core/data/unified_dataset.py
++++ b/diffsynth/core/data/unified_dataset.py
+@@ -65,9 +65,7 @@ class UnifiedDataset(torch.utils.data.Dataset):
+     
+     def load_metadata(self, metadata_path):
+         if metadata_path is None:
+-            print("No metadata_path. Searching for cached data files.")
+             self.search_for_cached_data_files(self.base_path)
+-            print(f"{len(self.cached_data)} cached data files found.")
+         elif metadata_path.endswith(".json"):
+             with open(metadata_path, "r") as f:
+                 metadata = json.load(f)
+@@ -87,7 +85,8 @@ class UnifiedDataset(torch.utils.data.Dataset):
+             data = self.cached_data[data_id % len(self.cached_data)]
+             data = self.cached_data_operator(data)
+         else:
+-            data = self.data[data_id % len(self.data)].copy()
++            actual_index = data_id % len(self.data)
++            data = self.data[actual_index].copy()
+             for key in self.data_file_keys:
+                 if key in data:
+                     if key in self.special_operator_map:
+diff --git a/diffsynth/diffusion/runner.py b/diffsynth/diffusion/runner.py
+index 63cd856..a9a380e 100644
+--- a/diffsynth/diffusion/runner.py
++++ b/diffsynth/diffusion/runner.py
+@@ -31,7 +31,7 @@ def launch_training_task(
+     model, optimizer, dataloader, scheduler = accelerator.prepare(model, optimizer, dataloader, scheduler)
+     
+     for epoch_id in range(num_epochs):
+-        for data in tqdm(dataloader):
++        for batch_idx, data in enumerate(tqdm(dataloader)):
+             with accelerator.accumulate(model):
+                 optimizer.zero_grad()
+                 if dataset.load_from_cache:
+@@ -67,5 +67,7 @@ def launch_data_process_task(
+                 folder = os.path.join(model_logger.output_path, str(accelerator.process_index))
+                 os.makedirs(folder, exist_ok=True)
+                 save_path = os.path.join(model_logger.output_path, str(accelerator.process_index), f"{data_id}.pth")
++                if os.path.exists(save_path):
++                    continue
+                 data = model(data)
+                 torch.save(data, save_path)
+diff --git a/diffsynth/models/wan_video_vace.py b/diffsynth/models/wan_video_vace.py
+index f3367f7..d532b56 100644
+--- a/diffsynth/models/wan_video_vace.py
++++ b/diffsynth/models/wan_video_vace.py
+@@ -57,6 +57,14 @@ class VaceWanModel(torch.nn.Module):
+     ):
+         c = [self.vace_patch_embedding(u.unsqueeze(0)) for u in vace_context]
+         c = [u.flatten(2).transpose(1, 2) for u in c]
++        
++        for i, u in enumerate(c):
++            pad_size = x.shape[1] - u.size(1)
++            if pad_size < 0:
++                raise RuntimeError(f"Negative padding dimension detected: trying to pad {pad_size}. "
++                                   f"VACE tensor has {u.size(1)} tokens but x only has {x.shape[1]} tokens. "
++                                   f"Check the vace_context input dimensions.")
++        
+         c = torch.cat([
+             torch.cat([u, u.new_zeros(1, x.shape[1] - u.size(1), u.size(2))],
+                       dim=1) for u in c
+diff --git a/examples/wanvideo/model_training/train.py b/examples/wanvideo/model_training/train.py
+index 4973438..117fc86 100644
+--- a/examples/wanvideo/model_training/train.py
++++ b/examples/wanvideo/model_training/train.py
+@@ -1,8 +1,9 @@
+-import torch, os, argparse, accelerate, warnings
++import torch, os, argparse, accelerate, warnings, random
+ from diffsynth.core import UnifiedDataset
+ from diffsynth.core.data.operators import LoadVideo, LoadAudio, ImageCropAndResize, ToAbsolutePath
+ from diffsynth.pipelines.wan_video import WanVideoPipeline, ModelConfig
+ from diffsynth.diffusion import *
++from safetensors.torch import load_file
+ os.environ["TOKENIZERS_PARALLELISM"] = "false"
+ 
+ 
+@@ -23,6 +24,7 @@ class WanTrainingModule(DiffusionTrainingModule):
+         task="sft",
+         max_timestep_boundary=1.0,
+         min_timestep_boundary=0.0,
++        ref_drop_prob=0.0,
+     ):
+         super().__init__()
+         # Warning
+@@ -51,6 +53,7 @@ class WanTrainingModule(DiffusionTrainingModule):
+         self.extra_inputs = extra_inputs.split(",") if extra_inputs is not None else []
+         self.fp8_models = fp8_models
+         self.task = task
++        self.ref_drop_prob = ref_drop_prob
+         self.task_to_loss = {
+             "sft:data_process": lambda pipe, *args: args,
+             "direct_distill:data_process": lambda pipe, *args: args,
+@@ -69,7 +72,10 @@ class WanTrainingModule(DiffusionTrainingModule):
+             elif extra_input == "end_image":
+                 inputs_shared["end_image"] = data["video"][-1]
+             elif extra_input == "reference_image" or extra_input == "vace_reference_image":
+-                inputs_shared[extra_input] = data[extra_input][0]
++                if self.ref_drop_prob > 0.0 and random.random() < self.ref_drop_prob:
++                    pass  # drop: do not add key so pipeline runs without reference
++                else:
++                    inputs_shared[extra_input] = data[extra_input][0]
+             else:
+                 inputs_shared[extra_input] = data[extra_input]
+         return inputs_shared
+@@ -117,6 +123,11 @@ def wan_parser():
+     parser.add_argument("--max_timestep_boundary", type=float, default=1.0, help="Max timestep boundary (for mixed models, e.g., Wan-AI/Wan2.2-I2V-A14B).")
+     parser.add_argument("--min_timestep_boundary", type=float, default=0.0, help="Min timestep boundary (for mixed models, e.g., Wan-AI/Wan2.2-I2V-A14B).")
+     parser.add_argument("--initialize_model_on_cpu", default=False, action="store_true", help="Whether to initialize models on CPU.")
++    parser.add_argument("--ref_drop_prob", type=float, default=0.0, help="Probability of dropping the reference image per sample (0.0=never, 0.5=50%% dropout).")
++    parser.add_argument("--resume_checkpoint", type=str, default=None, help="Path to checkpoint to resume training from.")
++    parser.add_argument("--latent_cache_dir", type=str, default=None,
++                        help="Directory for cached VAE latents. If cache exists, trains from it (skips VAE encoding). "
++                             "To create the cache, run with --task 'sft:data_process' --output_path <cache_dir>.")
+     return parser
+ 
+ 
+@@ -148,6 +159,27 @@ if __name__ == "__main__":
+             "input_audio": ToAbsolutePath(args.dataset_base_path) >> LoadAudio(sr=16000),
+         }
+     )
++    # Check for latent cache: if it exists, override dataset and task
++    if args.latent_cache_dir is not None:
++        cache_files = []
++        if os.path.exists(args.latent_cache_dir):
++            for root, dirs, files in os.walk(args.latent_cache_dir):
++                cache_files.extend([f for f in files if f.endswith('.pth')])
++        if len(cache_files) > 0:
++            if accelerator.is_main_process:
++                print(f"Found {len(cache_files)} cached latent files in {args.latent_cache_dir}")
++                print("Training from cached latents (skipping VAE encoding)")
++            dataset = UnifiedDataset(
++                base_path=args.latent_cache_dir,
++                metadata_path=None,
++                repeat=args.dataset_repeat,
++            )
++            if not args.task.endswith(":train") and not args.task.endswith(":data_process"):
++                args.task = args.task + ":train"
++        else:
++            if accelerator.is_main_process:
++                print(f"No cached latents found in {args.latent_cache_dir}")
++                print("Run latent caching first with: --task 'sft:data_process' --output_path <cache_dir>")
+     model = WanTrainingModule(
+         model_paths=args.model_paths,
+         model_id_with_origin_paths=args.model_id_with_origin_paths,
+@@ -169,7 +201,25 @@ if __name__ == "__main__":
+         device="cpu" if args.initialize_model_on_cpu else accelerator.device,
+         max_timestep_boundary=args.max_timestep_boundary,
+         min_timestep_boundary=args.min_timestep_boundary,
++        ref_drop_prob=args.ref_drop_prob,
+     )
++    
++    # Load checkpoint if resuming training
++    if args.resume_checkpoint is not None:
++        if accelerator.is_main_process:
++            print(f"Loading checkpoint from {args.resume_checkpoint}...")
++        state_dict = load_file(args.resume_checkpoint)
++        if hasattr(model.pipe, 'vace') and model.pipe.vace is not None:
++            missing_keys, unexpected_keys = model.pipe.vace.load_state_dict(state_dict, strict=False)
++            if accelerator.is_main_process:
++                print(f"  ✓ Loaded VACE checkpoint into model ({len(state_dict)} keys)")
++                if missing_keys:
++                    print(f"  Missing keys: {len(missing_keys)}")
++                if unexpected_keys:
++                    print(f"  Unexpected keys: {len(unexpected_keys)}")
++        else:
++            if accelerator.is_main_process:
++                print("  Warning: No VACE model found in pipeline, skipping checkpoint load")
+     model_logger = ModelLogger(
+         args.output_path,
+         remove_prefix_in_ckpt=args.remove_prefix_in_ckpt,

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "regenhuman"
+version = "1.0.0"
+description = "ReGenHuman: video anonymization by regenerating people from identity-free structural cues (NeurIPS 2026)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+dependencies = [
+    "torch>=2.6",
+    "torchvision",
+    "numpy<2",
+    "opencv-python<4.12",
+    "onnxruntime-gpu>=1.19",
+    "imageio[ffmpeg]",
+    "einops",
+    "safetensors",
+    "tqdm",
+    "easydict",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+caption = ["transformers>=4.57", "accelerate"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["regenhuman*"]
+namespaces = false

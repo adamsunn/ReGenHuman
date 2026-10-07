@@ -1,0 +1,33 @@
+# Downloaded model weights (fetched by scripts/setup_models.sh or at first run)
+models/
+third_party/*
+!third_party/README.md
+*.onnx
+*.pth
+*.pt
+*.ckpt
+
+# LoRA weights are distributed via the Google Drive link in the README
+weights/
+
+# Outputs & intermediates
+runs/
+outputs/
+*.mp4
+!assets/examples/*.mp4
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# macOS zip artifact (from unzipping the weights archive)
+__MACOSX/

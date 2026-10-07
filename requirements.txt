@@ -1,0 +1,29 @@
+# Python 3.12 recommended (SAM 3 requirement). Exact versions verified on
+# 2x NVIDIA L40S, CUDA 12.4 — see docs/INSTALL.md.
+setuptools<81          # sam3 imports pkg_resources (removed in newer setuptools)
+torch==2.6.0
+torchvision==0.21.0
+xformers==0.0.29.post3  # memory-efficient attention for Video-Depth-Anything (~3 GB vs ~20 GB)
+numpy<2                # sam3 requires numpy<2
+opencv-python<4.12
+onnxruntime-gpu>=1.19
+imageio[ffmpeg]
+einops
+safetensors
+accelerate
+transformers>=4.57,<5  # 4.57.3 verified; v5 untested with DiffSynth/Qwen3-VL
+datasets<4             # DiffSynth training dep; <4 keeps huggingface-hub <1 compatible
+pycocotools            # undeclared sam3 runtime dependency
+tqdm
+easydict
+matplotlib
+pytest
+
+# Video diffusion pipeline + LoRA training (pinned to the commit we developed against)
+diffsynth @ git+https://github.com/modelscope/DiffSynth-Studio@a6884f6
+
+# Default segmenter (gated weights — see docs/INSTALL.md)
+sam3 @ git+https://github.com/facebookresearch/sam3@bfbed07
+
+# Fallback segmenter (non-gated)
+sam-2 @ git+https://github.com/facebookresearch/sam2@2b90b9f
