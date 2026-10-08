@@ -70,7 +70,7 @@ conditioning video, `meta.json` provenance) are automatically saved in
 ### Usage notes
 
 - **Prompts matter.** The model was trained with dense 
-  captions; `--auto_caption` generates one with Qwen3-VL-8B. We auto-caption all videos in our evals.
+  captions; `--auto_caption` generates one with Qwen3-VL-8B. We use captions directly provided from HOIGen-1M and MedVideoCap-55K for our evals.
 - **Longer videos** than 49 frames are generated in overlapping chunks with
   temporal carry-over (`--chunk_size`, `--frame_overlap`); ReGenHuman has not been tested on >49-frame
   outputs.
