@@ -135,7 +135,7 @@ weights by [yzd-v](https://huggingface.co/yzd-v/DWPose)),
 [SAM 2](https://github.com/facebookresearch/sam2) +
 [GroundingDINO](https://github.com/IDEA-Research/GroundingDINO), and
 [Qwen3-VL](https://huggingface.co/Qwen/Qwen3-VL-8B-Instruct). Training data
-from [HOIGen-1M](https://github.com/HOIGen-1M). Thank you!
+from [HOIGen-1M](https://huggingface.co/datasets/HOIGen/HOIGen-1M). Thank you!
 
 ## Citation
 
