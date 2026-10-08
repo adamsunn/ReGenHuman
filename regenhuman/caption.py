@@ -12,13 +12,15 @@ from pathlib import Path
 from . import config
 
 _INSTRUCTION = (
-    "Describe this video in a single dense paragraph of 120-160 words. "
-    "Cover: the scene and setting, every visible person (their clothing, "
-    "appearance, and position), the actions they perform over time and the "
-    "objects they interact with, and the camera framing. Write in flowing "
-    "prose, present tense, no lists and no preamble."
+    "Describe this video in 120-160 words (a single dense paragraph). "
+    "Cover the main subject(s) (clothing, action, what they are holding "
+    "or interacting with), the setting, the most prominent visible "
+    "objects, and any camera motion. Stay strictly grounded in what is "
+    "visible — do not speculate. Start directly with the description; "
+    "do not write 'In this video,' or any meta-commentary."
 )
 _NUM_FRAMES = 8
+_MAX_NEW_TOKENS = 240
 
 
 def caption_video(frames_dir: Path) -> str:
@@ -47,7 +49,7 @@ def caption_video(frames_dir: Path) -> str:
     ).to(model.device)
 
     with torch.no_grad():
-        out = model.generate(**inputs, max_new_tokens=400, do_sample=False)
+        out = model.generate(**inputs, max_new_tokens=_MAX_NEW_TOKENS, do_sample=False)
     text = processor.batch_decode(
         out[:, inputs["input_ids"].shape[1]:], skip_special_tokens=True,
     )[0].strip()

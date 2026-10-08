@@ -34,7 +34,7 @@ Then download our pretrained LoRA weights
 and unzip into the repo root so they land as `weights/`:
 
 ```bash
-unzip weights.zip -d .   # -> weights/structall/step-16000.safetensors
+unzip ReGenHuman_weights.zip -d .   # -> weights/structall/step-16000.safetensors
                          #    weights/structhuman/step-16000.safetensors
 ```
 

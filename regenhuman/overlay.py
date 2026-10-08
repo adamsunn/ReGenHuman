@@ -1,20 +1,10 @@
 """Structural-conditioning compositing for the two ReGenHuman variants.
 
-The pixel math is kept exactly as used to build the training data of the
-released LoRAs — do not "improve" it, or the conditioning distribution will
-shift away from what the adapters were trained on.
-
 StructAll   : grayscale depth everywhere; inside the human mask the depth is
               soft-blended to the frame's mean depth value; DWPose skeleton
               strokes pasted on top.
 StructHuman : original RGB frame; inside the human mask a constant gray
               (128,128,128) fill; DWPose skeleton strokes pasted on top.
-
-Privacy note: a missing or empty human mask would leave the original person
-visible in the conditioning (and, for StructHuman, in the output background).
-Unlike the internal research code, these functions take the mask as a
-required argument, and the pipeline refuses to continue when masks are
-missing (see ``check_mask_coverage``).
 """
 
 import cv2
