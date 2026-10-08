@@ -1,8 +1,29 @@
 # Training your own ReGenHuman LoRA
 
-The released weights were trained on HOIGen-1M, which we do not
-redistribute — bring your own videos and captions. The full recipe below is
-exactly what produced `weights/*/step-16000.safetensors`.
+The released weights were trained on a subset of HOIGen-1M, which we do not
+redistribute — either reproduce our exact split (Section 0) or bring your own
+videos and captions (Section 1). The recipe below is exactly what produced
+`weights/*/step-16000.safetensors`.
+
+## 0. The released weights' training split (HOIGen-1M)
+
+| List | Rows | Unique clips | File |
+|---|---|---|---|
+| StructAll training set | 7,500 | 7,446 | [`docs/splits/hoigen1m_train_structall.txt`](splits/hoigen1m_train_structall.txt) |
+| StructHuman training set | 7,500 | 7,453 | [`docs/splits/hoigen1m_train_structhuman.txt`](splits/hoigen1m_train_structhuman.txt) |
+| Evaluation set (paper Tables 1–3) | 1,025 | 1,000 | [`docs/splits/hoigen1k_eval.txt`](splits/hoigen1k_eval.txt) |
+
+The two training lists differ by 33 clips (13 StructAll-only, 20
+StructHuman-only) because each variant drops clips whose conditioning
+overlay failed validation. The evaluation set is a seed-42 random sample of
+1,000 clips from HOIGen-5K, so it is disjoint from both training sets by
+construction. Clip IDs are HOIGen-1M file names (`<youtube_id>-<start>-<end>`)
+without the `.mp4` extension.
+
+To rebuild the exact dataset: download the listed clips from HOIGen-1M, take
+their captions from `HOIGen_caption_info.csv` (the `path` → `text` columns;
+`video_id` = `path` without `.mp4`) into the `video_id,prompt` CSV expected
+below, and run `scripts/prepare_dataset.py` for each variant.
 
 ## 1. Data requirements
 
