@@ -43,7 +43,7 @@ def process_one(video_path, prompt, variant, segmenter, out_root, work_root, num
         work / "frames", work / "pose", work / "depth", work / "masks", work / "overlay")
 
     src_fps = frames.probe_fps(video_path)
-    stride = frames.auto_stride(src_fps)
+    stride = 1
     n = frames.extract_frames(video_path, d_frames, stride=stride, max_frames=num_frames)
     if n < num_frames:
         print(f"  [skip] {vid}: only {n}/{num_frames} frames at stride {stride}")

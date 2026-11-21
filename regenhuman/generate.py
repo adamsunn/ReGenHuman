@@ -13,7 +13,7 @@ from typing import List
 
 from . import chunked, config
 
-WAN_REPO = "Wan-AI/Wan2.1-VACE-1.3B"
+WAN_REPO = "Wan-AI/Wan2.1-VACE-14B"
 TOKENIZER_REPO = "Wan-AI/Wan2.1-T2V-1.3B"
 
 
@@ -33,7 +33,7 @@ def load_pipeline(lora_path: Path, wan_dir: Path = None):
     else:
         root = str(config.WAN_MODELS_DIR)
         model_configs = [
-            ModelConfig(model_id=WAN_REPO, origin_file_pattern="diffusion_pytorch_model.safetensors", local_model_path=root),
+            ModelConfig(model_id=WAN_REPO, origin_file_pattern="diffusion_pytorch_model*.safetensors", local_model_path=root),
             ModelConfig(model_id=WAN_REPO, origin_file_pattern="models_t5_umt5-xxl-enc-bf16.pth", local_model_path=root),
             ModelConfig(model_id=WAN_REPO, origin_file_pattern="Wan2.1_VAE.pth", local_model_path=root),
         ]
