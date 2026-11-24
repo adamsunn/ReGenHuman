@@ -25,6 +25,7 @@ PYTHON="${PYTHON:-python}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
+LORA="${LORA:-$PROJECT_DIR/scripts/outputs/structhuman_lora_14b_resume/lora/step-4249.safetensors}"
 
 cd "$PROJECT_DIR"
 
@@ -158,6 +159,7 @@ while IFS= read -r VIDEO || [[ -n "$VIDEO" ]]; do
         --frame_stride "$STRIDE"
         --num_frames "$NUM_FRAMES"
         --fps_out "$FPS_OUT"
+        --lora "$LORA"
         --output "$RAW_OUT"
     )
     if [[ -n "$STEPS" ]]; then
